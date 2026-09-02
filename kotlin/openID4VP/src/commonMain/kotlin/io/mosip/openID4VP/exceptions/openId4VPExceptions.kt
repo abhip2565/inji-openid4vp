@@ -57,6 +57,13 @@ sealed class OpenID4VPExceptions(
     class AccessDenied(message: String, className: String) :
         OpenID4VPExceptions(OpenID4VPErrorCodes.ACCESS_DENIED, message, className)
 
+    class UnsupportedVcdm2HolderKey(algorithm: String, className: String) :
+        OpenID4VPExceptions(
+            OpenID4VPErrorCodes.ACCESS_DENIED,
+            "VC 2.0 presentation sharing supports only Ed25519 and P-256 holder keys; found $algorithm",
+            className
+        )
+
     class InvalidTransactionData(message: String, className: String) :
         OpenID4VPExceptions(OpenID4VPErrorCodes.INVALID_TRANSACTION_DATA, message, className)
 

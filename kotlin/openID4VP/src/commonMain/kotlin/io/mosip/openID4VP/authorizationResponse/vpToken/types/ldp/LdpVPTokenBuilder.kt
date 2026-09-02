@@ -160,6 +160,15 @@ internal class LdpVPTokenBuilder : VPTokenBuilder {
                 val signatureBase64Url = encodeToBase64Url(vpTokenSigningResult.signedData)
                 proof.signatureValue = signatureBase64Url
             }
+            SignatureSuiteAlgorithm.DataIntegrityProof.value -> {
+                if (vpTokenSigningResult.signedData.size != 64) {
+                    throw OpenID4VPExceptions.InvalidSignature(
+                        "Data Integrity Ed25519 and P-256 signatures must be exactly 64 bytes",
+                        className
+                    )
+                }
+                proof.proofValue = encodeToMultibaseBase58btc(vpTokenSigningResult.signedData)
+            }
             else -> {
                 proof.proofValue = encodeToMultibaseBase58btc(vpTokenSigningResult.signedData)
             }

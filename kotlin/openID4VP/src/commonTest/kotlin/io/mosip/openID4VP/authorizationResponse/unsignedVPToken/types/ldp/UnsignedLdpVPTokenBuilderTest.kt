@@ -14,6 +14,7 @@ import io.mosip.openID4VP.authorizationResponse.CredentialInputDescriptorMapping
 import io.mosip.openID4VP.authorizationResponse.CredentialToCredentialQueryIdMapping
 import io.mosip.openID4VP.authorizationResponse.vpToken.types.ldp.LdpVPToken
 import io.mosip.openID4VP.common.URDNA2015Canonicalization
+import io.mosip.openID4VP.common.RDFC10Canonicalization
 import io.mosip.openID4VP.common.decodeFromBase64Url
 import io.mosip.openID4VP.common.encodeToBase64Url
 import io.mosip.openID4VP.common.encodeToJsonString
@@ -105,6 +106,8 @@ class UnsignedLdpVPTokenBuilderTest {
     fun setup() {
         mockkObject(URDNA2015Canonicalization)
         every { URDNA2015Canonicalization.canonicalize(any()) } returns mockCanonicalizedData
+        mockkObject(RDFC10Canonicalization)
+        every { RDFC10Canonicalization.canonicalizeDataIntegrity(any()) } returns ByteArray(64) { it.toByte() }
 
         mockkStatic(::resolveJWSAlgorithm)
         every { resolveJWSAlgorithm(any(), any()) } returns "EdDSA"
@@ -230,6 +233,7 @@ class UnsignedLdpVPTokenBuilderTest {
 
         holderIds.forEach { holderId ->
             val credential = mapOf(
+                "@context" to listOf("https://www.w3.org/2018/credentials/v1"),
                 "credentialSubject" to mapOf("id" to holderId)
             )
             val mappings = listOf(
@@ -263,6 +267,7 @@ class UnsignedLdpVPTokenBuilderTest {
 
         invalidHolderIds.forEach { holderId ->
             val credential = mapOf(
+                "@context" to listOf("https://www.w3.org/2018/credentials/v1"),
                 "credentialSubject" to mapOf("id" to holderId)
             )
             val mappings = listOf(
@@ -273,6 +278,169 @@ class UnsignedLdpVPTokenBuilderTest {
                 builder.build(mappings)
             }
         }
+    }
+
+    @Test
+    fun `VC 2 credential builds an eddsa Data Integrity presentation`() {
+        val credential = mapOf<String, Any>(
+            "@context" to listOf("https://www.w3.org/ns/credentials/v2"),
+            "type" to listOf("VerifiableCredential"),
+            "credentialSubject" to mapOf("id" to "did:jwk:eyJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5In0#0")
+        )
+        val mappings = listOf(
+            CredentialInputDescriptorMapping(FormatType.LDP_VC, credential, "vc2")
+        )
+
+        val (payloads, unsignedTokens) = UnsignedLdpVPTokenBuilder(
+            testAuthorizationRequest,
+            SpecVersion.DRAFT_23,
+            id,
+            walletConfig
+        ).build(mappings)
+
+        val payload = payloads[mappings.single().identifier] as LdpVPToken
+        assertEquals(listOf("https://www.w3.org/ns/credentials/v2"), payload.context)
+        assertEquals("DataIntegrityProof", payload.proof?.type)
+        assertEquals("eddsa-rdfc-2022", payload.proof?.cryptosuite)
+        assertEquals("authentication", payload.proof?.proofPurpose)
+        assertEquals(
+            "did:jwk:eyJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5In0#0",
+            payload.proof?.verificationMethod
+        )
+        assertContentEquals(ByteArray(64) { it.toByte() }, unsignedTokens.single().dataToSign)
+    }
+
+    @Test
+    fun `VC 2 credential builds an ecdsa Data Integrity presentation`() {
+        every { resolveJWSAlgorithm(any(), any()) } returns "ES256"
+        val credential = mapOf<String, Any>(
+            "@context" to listOf("https://www.w3.org/ns/credentials/v2"),
+            "type" to listOf("VerifiableCredential"),
+            "credentialSubject" to mapOf("id" to "did:jwk:eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2In0#0")
+        )
+        val mappings = listOf(
+            CredentialInputDescriptorMapping(FormatType.LDP_VC, credential, "vc2")
+        )
+
+        val (payloads, unsignedTokens) = UnsignedLdpVPTokenBuilder(
+            testAuthorizationRequest,
+            SpecVersion.DRAFT_23,
+            id,
+            walletConfig
+        ).build(mappings)
+
+        val payload = payloads[mappings.single().identifier] as LdpVPToken
+        assertEquals("DataIntegrityProof", payload.proof?.type)
+        assertEquals("ecdsa-rdfc-2019", payload.proof?.cryptosuite)
+        assertEquals("authentication", payload.proof?.proofPurpose)
+        assertEquals("ES256", unsignedTokens.single().signatureAlgorithm)
+        assertContentEquals(ByteArray(64) { it.toByte() }, unsignedTokens.single().dataToSign)
+    }
+
+    @Test
+    fun `test buildDcql builds a Data Integrity presentation for a VC 2 credential`() {
+        val credential = mapOf<String, Any>(
+            "@context" to listOf("https://www.w3.org/ns/credentials/v2"),
+            "type" to listOf("VerifiableCredential"),
+            "credentialSubject" to mapOf("id" to "did:jwk:eyJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5In0#0")
+        )
+        val mappings = mutableListOf(
+            CredentialToCredentialQueryIdMapping(
+                format = FormatType.LDP_VC,
+                credential = credential,
+                credentialQueryId = "ldp-query-1"
+            )
+        )
+
+        val (payloads, unsignedTokens) = UnsignedLdpVPTokenBuilder(
+            authorizationRequest = testDcqlAuthorizationRequest,
+            specVersion = SpecVersion.V1,
+            id = id,
+            walletConfig
+        ).build(mappings)
+
+        val payload = payloads.values.single() as LdpVPToken
+        assertEquals(listOf("https://www.w3.org/ns/credentials/v2"), payload.context)
+        assertEquals("DataIntegrityProof", payload.proof?.type)
+        assertEquals("eddsa-rdfc-2022", payload.proof?.cryptosuite)
+        assertEquals("authentication", payload.proof?.proofPurpose)
+        assertContentEquals(ByteArray(64) { it.toByte() }, unsignedTokens.single().dataToSign)
+    }
+
+    @Test
+    fun `test buildDcql presents a VC 2 credential bare when holder binding is not required`() {
+        val credential = mapOf<String, Any>(
+            "@context" to listOf("https://www.w3.org/ns/credentials/v2"),
+            "type" to listOf("VerifiableCredential"),
+            "credentialSubject" to mapOf("id" to "did:jwk:eyJrdHkiOiJSU0EifQ")
+        )
+        every { resolveJWSAlgorithm(any(), any()) } returns "RS256"
+
+        val mappings = mutableListOf(
+            CredentialToCredentialQueryIdMapping(
+                format = FormatType.LDP_VC,
+                credential = credential,
+                credentialQueryId = "ldp-no-binding"
+            )
+        )
+
+        val (payloads, unsignedTokens) = UnsignedLdpVPTokenBuilder(
+            authorizationRequest = testDcqlAuthorizationRequestNoBinding,
+            specVersion = SpecVersion.V1,
+            id = id,
+            walletConfig
+        ).build(mappings)
+
+        // No proof is built, so an unsupported holder key is irrelevant on this path.
+        assertEquals(0, unsignedTokens.size)
+        assertTrue(payloads.values.single() is LdpVcToken)
+    }
+
+    @Test
+    fun `VC 2 context must be the first entry in the credential context`() {
+        val credential = mapOf<String, Any>(
+            "@context" to listOf(
+                "https://www.w3.org/2018/credentials/v1",
+                "https://www.w3.org/ns/credentials/v2"
+            ),
+            "type" to listOf("VerifiableCredential"),
+            "credentialSubject" to mapOf("id" to "did:jwk:eyJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5In0#0")
+        )
+
+        val error = assertFailsWith<OpenID4VPExceptions.InvalidData> {
+            UnsignedLdpVPTokenBuilder(
+                testAuthorizationRequest,
+                SpecVersion.DRAFT_23,
+                id,
+                walletConfig
+            ).build(listOf(CredentialInputDescriptorMapping(FormatType.LDP_VC, credential, "vc2")))
+        }
+
+        assertTrue(error.message!!.contains("VC 2.0 context must be the first @context entry"))
+    }
+
+    @Test
+    fun `VC 2 credential rejects RSA holder key`() {
+        every { resolveJWSAlgorithm(any(), any()) } returns "RS256"
+        val credential = mapOf<String, Any>(
+            "@context" to listOf("https://www.w3.org/ns/credentials/v2"),
+            "type" to listOf("VerifiableCredential"),
+            "credentialSubject" to mapOf("id" to "did:jwk:eyJrdHkiOiJSU0EifQ")
+        )
+
+        val error = assertFailsWith<OpenID4VPExceptions.UnsupportedVcdm2HolderKey> {
+            UnsignedLdpVPTokenBuilder(
+                testAuthorizationRequest,
+                SpecVersion.DRAFT_23,
+                id,
+                walletConfig
+            ).build(listOf(CredentialInputDescriptorMapping(FormatType.LDP_VC, credential, "vc2")))
+        }
+
+        assertEquals("access_denied", error.errorCode)
+        assertTrue(
+            error.message!!.contains("supports only Ed25519 and P-256 holder keys; found RS256")
+        )
     }
 
     @Test
@@ -501,4 +669,5 @@ class UnsignedLdpVPTokenBuilderTest {
             }
         }
     }
+
 }

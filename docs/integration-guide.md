@@ -86,18 +86,22 @@ For DCQL-based requests, the `require_cryptographic_holder_binding` proof parame
 
 **Supported VP proof signature suite:**
 
-* `JsonWebSignatureSuite2020`
+* `JsonWebSignatureSuite2020` — for W3C VC Data Model `1.1` credentials
+* `DataIntegrityProof` — for W3C VC Data Model `2.0` credentials, using cryptosuite `eddsa-rdfc-2022` (Ed25519 holder keys) or `ecdsa-rdfc-2019` (P-256 holder keys)
 
 **Supported Holder key identification algorithms:**
 
-* `RS256`
-* `ES256`
-* `Ed25519`
-* `ES256K`
+| Data Model | Supported holder key algorithms  |
+|------------|----------------------------------|
+| `1.1`      | `RS256`, `ES256`, `Ed25519`, `ES256K` |
+| `2.0`      | `Ed25519`, `ES256` only           |
 
 **Supported W3C Verifiable Credential Data Model:**
 
 * Version `1.1`
+* Version `2.0` — the `https://www.w3.org/ns/credentials/v2` context must be the **first** entry of the credential's `@context` array.
+
+> **Note:** A VC 2.0 credential whose holder key is neither Ed25519 nor P-256 cannot be presented by this SDK. Such credentials are **excluded from DCQL matching results** (see [DCQL Credential Matching](#dcql-credential-matching)) so that they are never offered to the user for selection. For Presentation Exchange requests, where the SDK performs no matching, constructing a presentation for such a credential fails instead.
 
 ---
 
@@ -469,6 +473,8 @@ val matchingResult = dcqlHelper.getMatchingCredentials(
 ```
 
 The SDK evaluates each `Credential` against the DCQL query constraints and returns the credentials that satisfy the requested requirements.
+
+> **Note:** Credentials the SDK would be unable to present are excluded from the results, so that they are never offered to the user for selection. This currently applies to W3C VC Data Model `2.0` credentials whose holder key is neither Ed25519 nor P-256, and only for queries where `require_cryptographic_holder_binding` is `true` — a query which does not require holder binding is presented as a bare credential with no proof, so no holder key is involved. If a query's every candidate is excluded this way, it reports `cryptographic_holderbinding_or_meta_filter_mismatch`.
 
 #### Parameters
 

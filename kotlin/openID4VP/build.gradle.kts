@@ -38,6 +38,7 @@ kotlin {
                 implementation(libs.bouncyCastle)
                 implementation(libs.identity.credential)
                 implementation(libs.ld.signatures.java)
+                implementation(libs.data.integrity.java)
                 implementation(libs.jsonld.common.java)
                 implementation(libs.vcverifier)
                 implementation(libs.bcpkix)
@@ -64,6 +65,10 @@ kotlin {
 
     }
 
+}
+
+configurations.configureEach {
+    exclude(group = "com.apicatalog", module = "titanium-json-ld-jre8")
 }
 
 android {
@@ -231,5 +236,3 @@ sonarqube {
         property("sonar.tests", "src/commonTest/kotlin,src/jvmTest/kotlin,src/androidUnitTest/kotlin")
     }
 }
-
-

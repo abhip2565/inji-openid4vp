@@ -638,6 +638,48 @@ class LdpVPTokenBuilderTest {
     private fun base64Url(bytes: ByteArray) =
         Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
 
+    // -------------------------------------------------------------------------------------
+    // Data Integrity proofs (VC 2.0)
+    // -------------------------------------------------------------------------------------
+
+    private fun dataIntegritySigningResult(signatureLength: Int) = builder.build(
+        credentialToCredentialQueryIdMappings = listOf(dcqlMapping("id-1", "employee-card")),
+        unsignedVPTokenResult = Pair(
+            mapOf("id-1" to ldpVPToken(SignatureSuiteAlgorithm.DataIntegrityProof.value)),
+            listOf(unsignedVPToken)
+        ),
+        vpTokenSigningResults = listOf(
+            VPTokenSigningResult(id = "id-1", signedData = ByteArray(signatureLength) { it.toByte() })
+        )
+    )
+
+    @Test
+    fun `should encode a 64 byte Data Integrity signature as a multibase proof value`() {
+        val signature = ByteArray(64) { it.toByte() }
+
+        val result = dataIntegritySigningResult(signatureLength = 64)
+
+        val token = assertIs<LdpVPToken>(result.getValue("employee-card").single())
+        val proof = assertNotNull(token.proof)
+        assertEquals(SignatureSuiteAlgorithm.DataIntegrityProof.value, proof.type)
+        assertEquals(encodeToMultibase(signature), proof.proofValue)
+        assertNull(proof.jws)
+        assertNull(proof.signatureValue)
+    }
+
+    @Test
+    fun `should reject a Data Integrity signature which is not 64 bytes`() {
+        listOf(63, 65).forEach { signatureLength ->
+            val error = assertFailsWith<OpenID4VPExceptions.InvalidSignature> {
+                dataIntegritySigningResult(signatureLength)
+            }
+            assertTrue(
+                error.message!!.contains("must be exactly 64 bytes"),
+                "Unexpected message for a $signatureLength byte signature: ${error.message}"
+            )
+        }
+    }
+
     private fun encodeToMultibase(bytes: ByteArray) =
         io.mosip.openID4VP.common.encodeToMultibaseBase58btc(bytes)
 
