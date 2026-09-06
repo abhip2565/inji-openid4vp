@@ -38,7 +38,10 @@ kotlin {
                 implementation(libs.bouncyCastle)
                 implementation(libs.identity.credential)
                 implementation(libs.ld.signatures.java)
-                implementation(libs.data.integrity.java)
+                implementation(libs.data.integrity.java.get().toString()) {
+                    exclude(group = "com.danubetech", module = "key-formats-java")
+                }
+                implementation("com.danubetech:key-formats-java:1.9.0")
                 implementation(libs.jsonld.common.java)
                 implementation(libs.vcverifier)
                 implementation(libs.bcpkix)
