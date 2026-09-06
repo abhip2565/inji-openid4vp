@@ -58,6 +58,16 @@ publishing {
                             dependencyNode.appendNode("groupId", dep.group)
                             dependencyNode.appendNode("artifactId", dep.name)
                             dependencyNode.appendNode("version", dep.version)
+                            def exclusions = (dep.excludeRules + configurations["commonMainImplementation"].excludeRules)
+                                    .unique { rule -> "${rule.group}:${rule.module}" }
+                            if (!exclusions.isEmpty()) {
+                                def exclusionsNode = dependencyNode.appendNode("exclusions")
+                                exclusions.each { rule ->
+                                    def exclusionNode = exclusionsNode.appendNode("exclusion")
+                                    exclusionNode.appendNode("groupId", rule.group ?: "*")
+                                    exclusionNode.appendNode("artifactId", rule.module ?: "*")
+                                }
+                            }
                         }
                     }
 
@@ -147,6 +157,16 @@ publishing {
                             dependencyNode.appendNode("groupId", dep.group)
                             dependencyNode.appendNode("artifactId", dep.name)
                             dependencyNode.appendNode("version", dep.version)
+                            def exclusions = (dep.excludeRules + configurations["commonMainImplementation"].excludeRules)
+                                    .unique { rule -> "${rule.group}:${rule.module}" }
+                            if (!exclusions.isEmpty()) {
+                                def exclusionsNode = dependencyNode.appendNode("exclusions")
+                                exclusions.each { rule ->
+                                    def exclusionNode = exclusionsNode.appendNode("exclusion")
+                                    exclusionNode.appendNode("groupId", rule.group ?: "*")
+                                    exclusionNode.appendNode("artifactId", rule.module ?: "*")
+                                }
+                            }
                         }
                     }
 
