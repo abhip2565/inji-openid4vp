@@ -1,17 +1,11 @@
 package io.mosip.openID4VP.dcql.evaluator
 
-import io.mosip.openID4VP.authorizationResponse.unsignedVPToken.types.ldp.UnsignedLdpVPTokenBuilder
-import io.mosip.openID4VP.common.resolveJWSAlgorithm
-import io.mosip.openID4VP.constants.FormatType
 import io.mosip.openID4VP.dcql.query.ClaimValue
 import io.mosip.openID4VP.dcql.query.ClaimsQuery
 import io.mosip.openID4VP.dcql.query.CredentialQuery
 import io.mosip.openID4VP.dcql.query.CredentialSetQuery
 import io.mosip.openID4VP.dcql.query.DCQLQuery
 import io.mosip.openID4VP.wallet.Credential
-
-private const val CLASS_NAME = "DcqlEvaluator"
-private val SUPPORTED_VCDM2_ALGORITHMS = setOf("EdDSA", "ES256")
 
 internal class DcqlEvaluator {
 
@@ -56,7 +50,11 @@ internal class DcqlEvaluator {
                     walletCredential = credentialTag
                 ) &&
                         matchesMeta(credentialQuery.meta, walletCredential = credentialTag) &&
-                        canPreparePresentation(credentialQuery, credential, holderAlgorithmCache)
+                        canPreparePresentation(
+                            credentialQuery.requireCryptographicHolderBinding,
+                            credentialTag,
+                            holderAlgorithmCache
+                        )
 
                 if (holderBindingAndMetaMatchSuccess) {
                     metaAndBindingMatchingIds.add(credentialId)
@@ -167,43 +165,6 @@ internal class DcqlEvaluator {
             matchingCredentials = matchingCredentials,
             allowMultipleCredentials = credentialQuery.multiple
         )
-    }
-
-    @Suppress("UNCHECKED_CAST")
-    private fun canPreparePresentation(
-        credentialQuery: CredentialQuery,
-        walletCredential: Credential,
-        holderAlgorithmCache: MutableMap<String, String?>
-    ): Boolean {
-        // A query which does not request holder binding is presented as a bare credential with no
-        // proof, so no holder key is involved.
-        if (!credentialQuery.requireCryptographicHolderBinding) return true
-        if (walletCredential.format != FormatType.LDP_VC) return true
-
-        val credentialData = walletCredential.data as? Map<String, Any> ?: return true
-        val isVcdm2Credential = runCatching {
-            UnsignedLdpVPTokenBuilder.isVcdm2Credential(credentialData)
-        }.getOrDefault(false)
-        if (!isVcdm2Credential) return true
-
-        val credentialSubject = credentialData["credentialSubject"] as? Map<String, Any>
-        val holderId = credentialSubject?.get("id") as? String ?: return true
-
-        val algorithm = resolveHolderAlgorithm(holderId, holderAlgorithmCache) ?: return true
-
-        return algorithm in SUPPORTED_VCDM2_ALGORITHMS
-    }
-
-    private fun resolveHolderAlgorithm(
-        holderId: String,
-        holderAlgorithmCache: MutableMap<String, String?>
-    ): String? {
-        if (holderAlgorithmCache.containsKey(holderId)) return holderAlgorithmCache[holderId]
-
-        val algorithm = runCatching { resolveJWSAlgorithm(holderId, CLASS_NAME) }.getOrNull()
-        holderAlgorithmCache[holderId] = algorithm
-
-        return algorithm
     }
 
     private data class ClaimsEvaluationResult(

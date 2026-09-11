@@ -16,6 +16,8 @@ import co.nstant.`in`.cbor.model.Map as CborMap
 import io.mosip.openID4VP.common.JsonLDProcessor
 import io.mosip.openID4VP.common.MdocCredentialUtils.getIssuerSigned
 import io.mosip.openID4VP.common.MdocCredentialUtils.getMdocDocType
+import io.mosip.openID4VP.common.W3cCredentialUtils.isVcdm2Credential
+import io.mosip.openID4VP.common.resolveJWSAlgorithm
 import io.mosip.openID4VP.common.decodeCbor
 import io.mosip.openID4VP.common.decodeFromBase64Url
 import io.mosip.openID4VP.common.encodeToBase64Url
@@ -29,6 +31,7 @@ import kotlin.collections.get
 import kotlin.collections.iterator
 
 private const val CLASS_NAME = "DCQLUtils"
+private val SUPPORTED_VCDM2_ALGORITHMS = setOf("EdDSA", "ES256")
 
 @Suppress("UNCHECKED_CAST")
 internal fun expandCredentialTag(credential: Credential): TaggedCredential {
@@ -41,10 +44,14 @@ internal fun expandCredentialTag(credential: Credential): TaggedCredential {
             val credentialSubject = credentialData["credentialSubject"] as? Map<String, Any>
             val credentialSubjectId = credentialSubject?.get("id") as? String
             val types = expandAndExtractTypes(credentialData)
+            val isVcdm2 = runCatching { isVcdm2Credential(credentialData, CLASS_NAME) }
+                .getOrDefault(false)
             W3cTaggedCredential(
                 credentialFormat = credential.format,
                 hasCryptographicHolderBinding = credentialSubjectId != null,
-                types = types
+                types = types,
+                holderId = credentialSubjectId,
+                isVcdm2 = isVcdm2
             )
         }
 
@@ -69,6 +76,37 @@ internal fun expandCredentialTag(credential: Credential): TaggedCredential {
             )
         }
     }
+}
+
+internal fun canPreparePresentation(
+    requireCryptographicHolderBinding: Boolean,
+    walletCredential: TaggedCredential,
+    holderAlgorithmCache: MutableMap<String, String?>
+): Boolean {
+    // A query which does not request holder binding is presented as a bare credential with no
+    // proof, so no holder key is involved.
+    if (!requireCryptographicHolderBinding) return true
+    val w3cCredential = walletCredential as? W3cTaggedCredential ?: return true
+    if (!w3cCredential.isVcdm2) return true
+    val holderId = w3cCredential.holderId ?: return true
+
+    // An unresolvable holder key (e.g. a slow did:web) keeps the credential eligible; VP
+    // construction reports the resolution error.
+    val algorithm = resolveHolderAlgorithm(holderId, holderAlgorithmCache) ?: return true
+
+    return algorithm in SUPPORTED_VCDM2_ALGORITHMS
+}
+
+private fun resolveHolderAlgorithm(
+    holderId: String,
+    holderAlgorithmCache: MutableMap<String, String?>
+): String? {
+    if (holderAlgorithmCache.containsKey(holderId)) return holderAlgorithmCache[holderId]
+
+    val algorithm = runCatching { resolveJWSAlgorithm(holderId, CLASS_NAME) }.getOrNull()
+    holderAlgorithmCache[holderId] = algorithm
+
+    return algorithm
 }
 
 @Suppress("UNCHECKED_CAST")

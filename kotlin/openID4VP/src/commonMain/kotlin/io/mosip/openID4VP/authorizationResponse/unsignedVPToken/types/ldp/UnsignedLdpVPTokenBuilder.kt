@@ -18,6 +18,9 @@ import io.mosip.openID4VP.authorizationResponse.vpToken.types.ldp.Proof
 import io.mosip.openID4VP.common.URDNA2015Canonicalization
 import io.mosip.openID4VP.common.RDFC10Canonicalization
 import io.mosip.openID4VP.common.UUIDGenerator
+import io.mosip.openID4VP.common.W3cCredentialUtils.VCDM_V1_CONTEXT
+import io.mosip.openID4VP.common.W3cCredentialUtils.VCDM_V2_CONTEXT
+import io.mosip.openID4VP.common.W3cCredentialUtils.isVcdm2Credential
 import io.mosip.openID4VP.common.decodeFromBase64Url
 import io.mosip.openID4VP.common.encodeToBase64Url
 import io.mosip.openID4VP.common.encodeToJsonString
@@ -33,8 +36,6 @@ import io.mosip.openID4VP.exceptions.OpenID4VPExceptions
 
 private const val LDP_INTERNAL_PATH = "verifiableCredential"
 private const val className = "UnsignedLdpVPTokenBuilder"
-private const val VCDM_V1_CONTEXT = "https://www.w3.org/2018/credentials/v1"
-private const val VCDM_V2_CONTEXT = "https://www.w3.org/ns/credentials/v2"
 private const val EDDSA_RDFC_2022 = "eddsa-rdfc-2022"
 private const val ECDSA_RDFC_2019 = "ecdsa-rdfc-2019"
 
@@ -64,7 +65,7 @@ internal class UnsignedLdpVPTokenBuilder(
             mapping.nestedPath = "$.$LDP_INTERNAL_PATH[0]"
             val (extractedHolder, extractedSuite) = extractHolderAndSignatureSuite(mapping.credential)
             val holder = validateHolderId(extractedHolder)
-            val isVcdm2 = isVcdm2Credential(mapping.credential)
+            val isVcdm2 = isVcdm2Credential(mapping.credential, className)
 
             val (vpPayload, unsignedTokens) = buildPayloadAndUnsignedVPToken(
                 identifier,
@@ -112,7 +113,7 @@ internal class UnsignedLdpVPTokenBuilder(
 
             val (extractedHolder, extractedSuite) = extractHolderAndSignatureSuite(credential)
             val holder = validateHolderId(extractedHolder)
-            val isVcdm2 = isVcdm2Credential(credential)
+            val isVcdm2 = isVcdm2Credential(credential, className)
 
             val (vpPayload, tokens) = buildPayloadAndUnsignedVPToken(
                 identifier,
@@ -226,7 +227,7 @@ internal class UnsignedLdpVPTokenBuilder(
 
             return Pair(
                 holderId,
-                if (isVcdm2Credential(credential)) DataIntegrityProof.value else JsonWebSignature2020.value
+                if (isVcdm2Credential(credential, className)) DataIntegrityProof.value else JsonWebSignature2020.value
             )
         }
 
@@ -248,24 +249,6 @@ internal class UnsignedLdpVPTokenBuilder(
             }
 
             return holderId
-        }
-
-        @Suppress("UNCHECKED_CAST")
-        internal fun isVcdm2Credential(credential: Any): Boolean {
-            val credentialMap = credential as? Map<String, Any>
-                ?: throw OpenID4VPExceptions.InvalidData("Credential is not a valid JSON object", className)
-            val contexts = credentialMap["@context"] as? List<*>
-                ?: throw OpenID4VPExceptions.InvalidData("Credential @context must be an ordered array", className)
-            val first = contexts.firstOrNull() as? String
-                ?: throw OpenID4VPExceptions.InvalidData("Credential @context is missing", className)
-            if (first == VCDM_V2_CONTEXT) return true
-            if (first == VCDM_V1_CONTEXT) {
-                if (contexts.drop(1).contains(VCDM_V2_CONTEXT)) {
-                    throw OpenID4VPExceptions.InvalidData("VC 2.0 context must be the first @context entry", className)
-                }
-                return false
-            }
-            throw OpenID4VPExceptions.InvalidData("Unsupported credential data model context: $first", className)
         }
     }
 }

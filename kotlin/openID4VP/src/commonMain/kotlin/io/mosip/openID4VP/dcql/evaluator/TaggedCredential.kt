@@ -10,7 +10,9 @@ internal interface TaggedCredential {
 internal data class W3cTaggedCredential(
     override val credentialFormat: FormatType,
     override val hasCryptographicHolderBinding: Boolean,
-    val types: List<String>
+    val types: List<String>,
+    val holderId: String? = null,
+    val isVcdm2: Boolean = false
 ) : TaggedCredential
 
 internal data class MdocTaggedCredential(
