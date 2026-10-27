@@ -9,12 +9,12 @@ import io.mosip.openID4VP.authorizationResponse.CredentialToCredentialQueryIdMap
 import io.mosip.openID4VP.authorizationResponse.unsignedVPToken.UnsignedVPToken
 import io.mosip.openID4VP.authorizationResponse.unsignedVPToken.UnsignedVPTokenBuilder
 import io.mosip.openID4VP.common.MdocCredentialUtils.getMdocDocType
+import io.mosip.openID4VP.common.MdocDeviceResponseUtils
 import io.mosip.openID4VP.common.MdocCredentialUtils.extractMdocKeyReferenceAndAlg
 import io.mosip.openID4VP.common.UUIDGenerator
 import io.mosip.openID4VP.common.cborArrayOf
 import io.mosip.openID4VP.common.createHashedDataItem
 import io.mosip.openID4VP.common.encodeCbor
-import io.mosip.openID4VP.common.mdocDeviceAuthenticationDataToSign
 import io.mosip.openID4VP.common.generateHash
 import io.mosip.openID4VP.common.toJWKThumbprintBstr
 import io.mosip.openID4VP.constants.FormatType
@@ -109,7 +109,7 @@ internal class UnsignedMdocVPTokenBuilder(
         val identifier = UUIDGenerator.generateUUID()
         val (keyRef, alg) = extractMdocKeyReferenceAndAlg(credential as String, className)
 
-        val bytesToSign = mdocDeviceAuthenticationDataToSign(sessionTranscript, docType, alg)
+        val bytesToSign = MdocDeviceResponseUtils.deviceAuthenticationDataToSign(sessionTranscript, docType, alg)
         uuidToDeviceAuthenticationBytes[identifier] = bytesToSign
         setIdentifier(identifier)
 

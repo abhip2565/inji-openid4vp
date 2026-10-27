@@ -8,14 +8,14 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /** The data the mdoc signs for mdoc authentication: ISO/IEC 18013-5 clause 9.1.3.4. */
-class MdocDeviceAuthenticationTest {
+class MdocDeviceResponseUtilsTest {
 
     // SessionTranscript for QR engagement: [DeviceEngagementBytes, EReaderKeyBytes, null] (clause 9.1.5.1)
     private val qrTranscript = "83d81841a0d81841a1f6".hexToByteArray()
 
     @Test
     fun `data to sign is the COSE Sig_structure over DeviceAuthenticationBytes with alg in the protected header`() {
-        val dataToSign = mdocDeviceAuthenticationDataToSign(qrTranscript, "org.iso.18013.5.1.mDL", "ES256")
+        val dataToSign = MdocDeviceResponseUtils.deviceAuthenticationDataToSign(qrTranscript, "org.iso.18013.5.1.mDL", "ES256")
 
         val sigStructure = decodeCbor(dataToSign) as CborArray
         assertEquals("Signature1", (sigStructure.dataItems[0] as UnicodeString).string)
@@ -29,7 +29,7 @@ class MdocDeviceAuthenticationTest {
 
     @Test
     fun `DeviceAuthentication holds the label, the transcript, the docType and empty DeviceNameSpacesBytes`() {
-        val dataToSign = mdocDeviceAuthenticationDataToSign(qrTranscript, "org.iso.18013.5.1.mDL", "ES256")
+        val dataToSign = MdocDeviceResponseUtils.deviceAuthenticationDataToSign(qrTranscript, "org.iso.18013.5.1.mDL", "ES256")
 
         val deviceAuthentication = deviceAuthenticationOf(dataToSign)
         // 84 = array of four; "DeviceAuthentication"; the transcript; the docType; #6.24(bstr .cbor {})
@@ -45,7 +45,7 @@ class MdocDeviceAuthenticationTest {
         // the same transcript with its array count written in two bytes (98 03) instead of one (83)
         val longFormTranscript = "9803d81841a0d81841a1f6".hexToByteArray()
 
-        val dataToSign = mdocDeviceAuthenticationDataToSign(longFormTranscript, "org.iso.18013.5.1.mDL", "ES256")
+        val dataToSign = MdocDeviceResponseUtils.deviceAuthenticationDataToSign(longFormTranscript, "org.iso.18013.5.1.mDL", "ES256")
 
         val deviceAuthentication = deviceAuthenticationOf(dataToSign).toHex()
         assertTrue(deviceAuthentication.contains(longFormTranscript.toHex()))
