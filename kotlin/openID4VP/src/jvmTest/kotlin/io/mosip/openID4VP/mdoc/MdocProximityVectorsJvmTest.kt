@@ -92,6 +92,19 @@ class MdocProximityVectorsJvmTest {
     }
 
     @Test
+    fun `with a fixed signature the response is byte for byte the one built independently`() {
+        // the same expected bytes are checked by the Swift library, so both platforms send the same response
+        val fixed = vectors.path("withFixedSignature")
+        val signature = fixed.text("signature").hexToBytes()
+
+        val response = runSuspending {
+            MdocProximity.buildDeviceResponse(sessionTranscriptBytes, listOf("mdl", "pid").map(::credential)) { signature }
+        }
+
+        assertEquals(fixed.text("mdlAndPidDeviceResponse"), response.toHex())
+    }
+
+    @Test
     fun `writes the response for the two documents for verify_device_response_py`() {
         val response = build("mdl", "pid")
 

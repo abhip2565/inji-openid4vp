@@ -242,6 +242,25 @@ class MdocProximityTest {
     }
 
     @Test
+    fun `session transcript bytes under another tag than 24 are rejected`() {
+        // tag 25 instead of 24 around the same transcript bytes
+        val otherTag = encodeCbor(ByteString(sessionTranscript).apply { setTag(25) })
+
+        assertFailsWith<OpenID4VPExceptions.InvalidData> {
+            runSuspending {
+                MdocProximity.buildDeviceResponse(otherTag, listOf(TestMdocs.credential(mdl, familyName))) { signature }
+            }
+        }
+    }
+
+    @Test
+    fun `a credential followed by more bytes is rejected`() {
+        val withTrailingByte = TestMdocs.credential(mdl, familyName) + 0x00
+
+        assertFailsWith<OpenID4VPExceptions.InvalidData> { build(listOf(withTrailingByte)) }
+    }
+
+    @Test
     fun `session transcript bytes followed by anything else are rejected`() {
         assertFailsWith<OpenID4VPExceptions.InvalidData> {
             runSuspending {
