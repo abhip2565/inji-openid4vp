@@ -10,7 +10,6 @@ import co.nstant.`in`.cbor.model.NegativeInteger
 import co.nstant.`in`.cbor.model.UnicodeString
 import co.nstant.`in`.cbor.model.UnsignedInteger
 import io.mosip.openID4VP.dcql.evaluator.extractStringFromCborMap
-import io.mosip.openID4VP.exceptions.OpenID4VPExceptions
 import io.mosip.openID4VP.exceptions.OpenID4VPExceptions.InvalidData
 import java.io.ByteArrayInputStream
 import java.security.MessageDigest
@@ -19,36 +18,7 @@ import java.security.MessageDigest
 private val DIGEST_ALGORITHMS = setOf("SHA-256", "SHA-384", "SHA-512")
 private const val TAG_ENCODED_CBOR = 24L
 
-/** An mdoc credential's parts, read once and checked against its MSO. */
-internal class CheckedMdocCredential(
-    val docType: String,
-    val issuerSigned: Map,
-    val holderKeyReference: String,
-    val algorithm: String,
-)
-
 internal object MdocCredentialUtils {
-
-    /**
-     * Reads an mdoc credential given as CBOR (IssuerSigned, or a document holding it) and checks its
-     * items against the MSO with [checkIssuerSignedItems]. Anything unreadable is InvalidData.
-     */
-    fun readCheckedCredential(credential: ByteArray, className: String): CheckedMdocCredential = try {
-        val decoded = CborDecoder(ByteArrayInputStream(credential)).decode().singleOrNull() as? Map
-            ?: throw InvalidData("mdoc credential is not one CBOR map", className)
-        val issuerSigned = getIssuerSigned(decoded, className) as? Map
-            ?: throw InvalidData("issuerSigned is not a CBOR map", className)
-        val mso = getMso(issuerSigned, className)
-        val docType = (mso[UnicodeString("docType")] as? UnicodeString)?.string
-            ?: throw InvalidData("docType missing or invalid in the MSO", className)
-        checkIssuerSignedItems(issuerSigned, mso, className)
-        val (holderKeyReference, algorithm) = extractKeyReferenceAndAlgFromMso(mso, className)
-        CheckedMdocCredential(docType, issuerSigned, holderKeyReference, algorithm)
-    } catch (exception: OpenID4VPExceptions) {
-        throw exception
-    } catch (exception: Exception) {
-        throw InvalidData("mdoc credential could not be read: ${exception.message}", className, cause = exception)
-    }
 
     fun getMdocDocTypeAndIssuerSigned(credential: Any, className: String): Triple<String, String, DataItem> {
         val mdocCredential = credential as? String
@@ -179,11 +149,11 @@ internal object MdocCredentialUtils {
     }
 
     /**
-     * Checks the IssuerSignedItemBytes of [issuerSigned] against the [mso]: each must match its
-     * digest (ISO/IEC 18013-5 clause 9.1.2.5, over the item as it will be sent), and each
+     * Throws InvalidData unless every IssuerSignedItemBytes of [issuerSigned] matches its digest in
+     * the [mso] (ISO/IEC 18013-5 clause 9.1.2.5, over the item as it will be sent), and each
      * namespace holds at least one item and no element twice (clause 8.3.2.1.2.2).
      */
-    internal fun checkIssuerSignedItems(issuerSigned: Map, mso: Map, className: String) {
+    internal fun validateMdocDigests(issuerSigned: Map, mso: Map, className: String) {
         val nameSpaces = issuerSigned[UnicodeString("nameSpaces")] ?: return
         val nameSpaceMap = nameSpaces as? Map ?: throw InvalidData("nameSpaces is not a map", className)
         val digestAlgorithm = (mso[UnicodeString("digestAlgorithm")] as? UnicodeString)?.string
