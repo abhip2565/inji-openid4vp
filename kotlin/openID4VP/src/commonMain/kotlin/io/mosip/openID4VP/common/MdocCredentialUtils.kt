@@ -186,7 +186,6 @@ internal object MdocCredentialUtils {
         }
     }
 
-    /** The digestID and elementIdentifier of one IssuerSignedItemBytes (tag 24). */
     private fun readIssuerSignedItem(item: DataItem, nameSpace: String, className: String): Pair<Long, String> {
         val bytes = item as? ByteString
         if (bytes == null || bytes.tag?.value != TAG_ENCODED_CBOR) {
@@ -216,7 +215,6 @@ internal object MdocCredentialUtils {
         val payloadBytes = issuerAuthArray.dataItems[2] as? ByteString
             ?: throw InvalidData("issuerAuth payload missing", className)
 
-        // Decode payload
         val firstDecoded = CborDecoder(ByteArrayInputStream(payloadBytes.bytes)).decode().first()
 
         // Handle Tag 24 (encoded CBOR)

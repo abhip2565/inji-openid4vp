@@ -20,14 +20,9 @@ private const val STATUS_OK = 0L
 private const val SIGNATURE_BYTES = 64
 
 /**
- * Builds the answer to an in-person (ISO/IEC 18013-5 proximity) mdoc request: the DeviceResponse
- * (clause 8.3.2.1.2.2), which the wallet hands to the transport (Tuvali) as it is.
- *
- * The wallet passes each credential with only the data elements to share already in it; nothing
- * is filtered here. Each element must still be exactly as issued, so a credential's items are
- * checked against their digests in the MSO before that credential is signed. For each document the wallet is asked, through
- * the sign callback, to sign the mdoc authentication data (clause 9.1.3) with the credential's
- * device key.
+ * Builds an ISO/IEC 18013-5 DeviceResponse (8.3.2.1.2.2). Credentials must already be
+ * filtered without altering issued item bytes. Retained MSO digests are validated before
+ * the wallet signs DeviceAuthentication with each credential's device key (9.1.3).
  */
 object MdocProximity {
 
@@ -87,7 +82,6 @@ object MdocProximity {
         return buildDeviceResponse(sessionTranscriptBytes, decoded, sign)
     }
 
-    /** The IssuerSigned map of a credential given as CBOR (IssuerSigned, or a document holding it). */
     private fun issuerSignedOf(credential: ByteArray): CborMap = try {
         val decoded = CborDecoder(ByteArrayInputStream(credential)).decode().singleOrNull() as? CborMap
             ?: throw invalid("mdoc credential is not one CBOR map")

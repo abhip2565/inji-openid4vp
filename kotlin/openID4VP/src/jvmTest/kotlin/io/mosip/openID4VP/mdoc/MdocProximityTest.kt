@@ -38,8 +38,6 @@ class MdocProximityTest {
 
     private fun onlyDocument(response: ByteArray) = decodeCbor(response)["documents"].items().single()
 
-    // MARK: the response
-
     @Test
     fun `builds a DeviceResponse with version 1_0, the document and status 0`() {
         val response = decodeCbor(build(listOf(TestMdocs.credential(mdl, familyName))))
@@ -133,8 +131,6 @@ class MdocProximityTest {
         assertEquals(encodeCbor(issuerSigned).toHex(), encodeCbor(document["issuerSigned"]).toHex())
     }
 
-    // MARK: signing
-
     @Test
     fun `sign is asked once per document with the MSO device key, its algorithm and the device authentication data`() {
         val asked = mutableListOf<MdocSigningInput>()
@@ -168,8 +164,6 @@ class MdocProximityTest {
             build(listOf(TestMdocs.credential(mdl, familyName))) { ByteArray(71) }
         }
     }
-
-    // MARK: checks on what the wallet passed in
 
     @Test
     fun `an item whose digest does not match the MSO is rejected before anything is signed`() {
