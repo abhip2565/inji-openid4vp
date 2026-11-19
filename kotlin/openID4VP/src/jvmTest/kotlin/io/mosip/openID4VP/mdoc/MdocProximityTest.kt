@@ -271,6 +271,33 @@ class MdocProximityTest {
     }
 
     @Test
+    fun `an empty session transcript inside tag 24 is rejected before anything is signed`() {
+        val empty = encodeCbor(ByteString(ByteArray(0)).apply { setTag(24) })
+        var signed = false
+
+        assertFailsWith<OpenID4VPExceptions.InvalidData> {
+            runSuspending {
+                MdocProximity.buildDeviceResponse(empty, listOf(TestMdocs.credential(mdl, familyName))) { signed = true; signature }
+            }
+        }
+        assertEquals(false, signed)
+    }
+
+    @Test
+    fun `a session transcript of two CBOR items is rejected before anything is signed`() {
+        // 01 02: the integers 1 and 2 instead of the 3-item SessionTranscript array
+        val twoItems = encodeCbor(ByteString(byteArrayOf(0x01, 0x02)).apply { setTag(24) })
+        var signed = false
+
+        assertFailsWith<OpenID4VPExceptions.InvalidData> {
+            runSuspending {
+                MdocProximity.buildDeviceResponse(twoItems, listOf(TestMdocs.credential(mdl, familyName))) { signed = true; signature }
+            }
+        }
+        assertEquals(false, signed)
+    }
+
+    @Test
     fun `session transcript bytes under another tag than 24 are rejected`() {
         // tag 25 instead of 24 around the same transcript bytes
         val otherTag = encodeCbor(ByteString(sessionTranscript).apply { setTag(25) })
