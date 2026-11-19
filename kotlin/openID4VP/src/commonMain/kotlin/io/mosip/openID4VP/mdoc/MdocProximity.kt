@@ -1,6 +1,7 @@
 package io.mosip.openID4VP.mdoc
 
 import co.nstant.`in`.cbor.CborDecoder
+import co.nstant.`in`.cbor.model.NegativeInteger
 import co.nstant.`in`.cbor.model.UnicodeString
 import co.nstant.`in`.cbor.model.UnsignedInteger
 import io.mosip.openID4VP.common.MdocCredentialUtils
@@ -16,8 +17,9 @@ private const val className = "MdocProximity"
 private const val DEVICE_RESPONSE_VERSION = "1.0"
 private const val STATUS_OK = 0L
 
-// raw signature length for each supported device key algorithm: r ‖ s on P-256, and Ed25519
-private val SIGNATURE_BYTES_BY_ALGORITHM = mapOf("ES256" to 64, "EdDSA" to 64)
+private const val COSE_KEY_CRV = -1L
+private const val COSE_CRV_ED25519 = 6L
+private const val COSE_CRV_ED448 = 7L
 
 /**
  * Builds an ISO/IEC 18013-5 DeviceResponse (8.3.2.1.2.2). Credentials must already be
@@ -48,8 +50,8 @@ object MdocProximity {
             if (!docTypes.add(docType)) throw invalid("Duplicate Mdoc Credentials with same doctype found")
             val (holderKeyReference, algorithm) = MdocCredentialUtils.extractKeyReferenceAndAlgFromMso(mso, className)
 
-            val expectedBytes = SIGNATURE_BYTES_BY_ALGORITHM[algorithm]
-                ?: throw invalid("Unsupported device key algorithm $algorithm")
+            val expectedBytes = signatureBytesFor(algorithm, mso)
+                ?: throw invalid("Unsupported device key: $algorithm on curve ${deviceKeyCurve(mso)}")
 
             val dataToSign = MdocDeviceResponseUtils.deviceAuthenticationDataToSign(sessionTranscript, docType, algorithm)
             val signature = sign(MdocSigningInput(holderKeyReference, algorithm, dataToSign))
@@ -93,6 +95,23 @@ object MdocProximity {
         throw exception
     } catch (exception: Exception) {
         throw invalid("mdoc credential could not be read: ${exception.message}", exception)
+    }
+
+    // raw r ‖ s on P-256; Ed448 signatures are longer than Ed25519 ones
+    private fun signatureBytesFor(algorithm: String, mso: CborMap): Int? = when (algorithm) {
+        "ES256" -> 64
+        "EdDSA" -> when (deviceKeyCurve(mso)) {
+            COSE_CRV_ED25519 -> 64
+            COSE_CRV_ED448 -> 114
+            else -> null
+        }
+        else -> null
+    }
+
+    private fun deviceKeyCurve(mso: CborMap): Long? {
+        val deviceKeyInfo = mso[UnicodeString("deviceKeyInfo")] as? CborMap
+        val deviceKey = deviceKeyInfo?.get(UnicodeString("deviceKey")) as? CborMap
+        return (deviceKey?.get(NegativeInteger(COSE_KEY_CRV)) as? UnsignedInteger)?.value?.toLong()
     }
 
     private fun invalid(message: String, cause: Throwable? = null) =

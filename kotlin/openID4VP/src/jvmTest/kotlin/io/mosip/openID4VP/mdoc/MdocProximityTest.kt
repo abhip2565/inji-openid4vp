@@ -168,6 +168,39 @@ class MdocProximityTest {
     }
 
     @Test
+    fun `an Ed448 device key accepts a 114-byte raw signature`() {
+        // EdDSA (alg -8) on Ed448 (crv 7), whose signatures are 114 bytes
+        val credential = TestMdocs.credential(mdl, familyName, deviceKey = TestMdocs.edDsaDeviceKey(curve = 7, keyBytes = 57))
+
+        val document = onlyDocument(build(listOf(credential)) { ByteArray(114) })
+
+        assertEquals(mdl, (document["docType"] as UnicodeString).string)
+    }
+
+    @Test
+    fun `an Ed448 device key rejects a 64-byte signature with the expected length`() {
+        val credential = TestMdocs.credential(mdl, familyName, deviceKey = TestMdocs.edDsaDeviceKey(curve = 7, keyBytes = 57))
+
+        val failure = assertFailsWith<OpenID4VPExceptions.InvalidData> {
+            build(listOf(credential)) { ByteArray(64) }
+        }
+
+        assertTrue(failure.message?.contains("EdDSA signature must be 114 raw bytes (not DER), got 64") == true)
+    }
+
+    @Test
+    fun `an EdDSA device key on an unknown curve is rejected before anything is signed`() {
+        // crv 99 is not an EdDSA curve
+        val credential = TestMdocs.credential(mdl, familyName, deviceKey = TestMdocs.edDsaDeviceKey(curve = 99, keyBytes = 32))
+        var signed = false
+
+        assertFailsWith<OpenID4VPExceptions.InvalidData> {
+            build(listOf(credential)) { signed = true; signature }
+        }
+        assertEquals(false, signed)
+    }
+
+    @Test
     fun `an item whose digest does not match the MSO is rejected before anything is signed`() {
         // the wallet re-encoded or changed an item while removing the fields not to share
         val tampered = TestMdocs.issuerSigned(mdl, listOf(familyName)) { items ->
