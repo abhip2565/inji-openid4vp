@@ -25,12 +25,13 @@ internal object MdocDeviceResponseUtils {
      * re-encoded. DeviceNameSpaces is always empty, as Inji returns no device-signed data elements.
      */
     fun deviceAuthenticationDataToSign(sessionTranscript: ByteArray, docType: String, alg: String): ByteArray {
+        // written byte by byte so the transcript stays exactly as given: 0x84 starts a 4-item array
         val deviceAuthentication = byteArrayOf(ARRAY_OF_FOUR) +
             encodeCbor(UnicodeString("DeviceAuthentication")) +
             sessionTranscript +
             encodeCbor(UnicodeString(docType)) +
             encodeCbor(emptyDeviceNameSpacesBytes())
-        val deviceAuthenticationBytes = encodeCbor(ByteString(deviceAuthentication).apply { setTag(TAG_ENCODED_CBOR) })
+        val deviceAuthenticationBytes = taggedCbor24(deviceAuthentication)
         return CoseSignature1Utils.createSignature1Structure(deviceAuthenticationBytes, alg)
     }
 
