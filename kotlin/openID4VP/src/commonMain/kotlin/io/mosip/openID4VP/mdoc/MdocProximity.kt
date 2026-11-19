@@ -16,8 +16,8 @@ private const val className = "MdocProximity"
 private const val DEVICE_RESPONSE_VERSION = "1.0"
 private const val STATUS_OK = 0L
 
-// ES256 (r ‖ s on P-256) and EdDSA (Ed25519) signatures are both 64 bytes
-private const val SIGNATURE_BYTES = 64
+// raw signature length for each supported device key algorithm: r ‖ s on P-256, and Ed25519
+private val SIGNATURE_BYTES_BY_ALGORITHM = mapOf("ES256" to 64, "EdDSA" to 64)
 
 /**
  * Builds an ISO/IEC 18013-5 DeviceResponse (8.3.2.1.2.2). Credentials must already be
@@ -48,10 +48,13 @@ object MdocProximity {
             if (!docTypes.add(docType)) throw invalid("Duplicate Mdoc Credentials with same doctype found")
             val (holderKeyReference, algorithm) = MdocCredentialUtils.extractKeyReferenceAndAlgFromMso(mso, className)
 
+            val expectedBytes = SIGNATURE_BYTES_BY_ALGORITHM[algorithm]
+                ?: throw invalid("Unsupported device key algorithm $algorithm")
+
             val dataToSign = MdocDeviceResponseUtils.deviceAuthenticationDataToSign(sessionTranscript, docType, algorithm)
             val signature = sign(MdocSigningInput(holderKeyReference, algorithm, dataToSign))
-            if (signature.size != SIGNATURE_BYTES) {
-                throw invalid("$algorithm signature must be $SIGNATURE_BYTES raw bytes, got ${signature.size}")
+            if (signature.size != expectedBytes) {
+                throw invalid("$algorithm signature must be $expectedBytes raw bytes (not DER), got ${signature.size}")
             }
             documents += MdocDeviceResponseUtils.document(docType, issuerSigned, algorithm, signature)
         }

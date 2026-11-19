@@ -158,11 +158,13 @@ class MdocProximityTest {
     }
 
     @Test
-    fun `a signature that is not 64 raw bytes is rejected`() {
+    fun `an ES256 signature that is not 64 raw bytes is rejected with the expected length`() {
         // a DER-encoded ECDSA signature is 70 to 72 bytes; COSE needs raw r and s
-        assertFailsWith<OpenID4VPExceptions.InvalidData> {
+        val failure = assertFailsWith<OpenID4VPExceptions.InvalidData> {
             build(listOf(TestMdocs.credential(mdl, familyName))) { ByteArray(71) }
         }
+
+        assertTrue(failure.message?.contains("ES256 signature must be 64 raw bytes (not DER), got 71") == true)
     }
 
     @Test
